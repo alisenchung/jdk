@@ -674,7 +674,6 @@ class DatagramChannelImpl
                 configureSocketNonBlocking();
             } else {
                 configureSocketNonBlockingIfVirtualThread();
-                nanos = Long.MAX_VALUE;
             }
 
             // p.bufLength is the maximum size of the datagram that can be received
@@ -689,7 +688,9 @@ class DatagramChannelImpl
                 SocketAddress remote = beginRead(true, false);
                 boolean connected = (remote != null);
                 do {
-                    long remainingNanos = nanos - (System.nanoTime() - startNanos);
+                    long remainingNanos = (nanos > 0)
+                            ? nanos - (System.nanoTime() - startNanos)
+                            : 0;
                     ByteBuffer dst = tryBlockingReceive(connected, bufLength, remainingNanos);
 
                     // if datagram received then get sender and copy to DatagramPacket
@@ -756,11 +757,15 @@ class DatagramChannelImpl
                     Util.offerFirstTemporaryDirectBuffer(dst);
                     dst = null;
                 }
-                long remainingNanos = nanos - (System.nanoTime() - startNanos);
-                if (remainingNanos <= 0) {
-                    throw new SocketTimeoutException("Receive timed out");
+                if (nanos > 0) {
+                    long remainingNanos = nanos - (System.nanoTime() - startNanos);
+                    if (remainingNanos <= 0) {
+                        throw new SocketTimeoutException("Receive timed out");
+                    }
+                    park(Net.POLLIN, remainingNanos);
+                } else {
+                    park(Net.POLLIN);
                 }
-                park(Net.POLLIN, remainingNanos);
                 // virtual thread needs to re-allocate temporary direct buffer after parking
                 if (Thread.currentThread().isVirtual()) {
                     dst = Util.getTemporaryDirectBuffer(len);
@@ -806,14 +811,19 @@ class DatagramChannelImpl
         }
     }
 
+    /**
+     * Receives a datagram into a direct buffer.
+     */
     private int receiveIntoNativeBuffer(ByteBuffer bb, int rem, int pos,
                                         boolean connected)
         throws IOException
     {
         NIO_ACCESS.acquireSession(bb);
         try {
+            long bufAddress = NIO_ACCESS.getBufferAddress(bb);
             int n = receive0(fd,
-                             ((DirectBuffer)bb).address() + pos, rem,
+                             bufAddress + pos,
+                             rem,
                              sourceSockAddr.address(),
                              connected);
             if (n > 0)
@@ -991,6 +1001,9 @@ class DatagramChannelImpl
         }
     }
 
+    /**
+     * Send a datagram contained in a direct buffer.
+     */
     private int sendFromNativeBuffer(FileDescriptor fd, ByteBuffer bb,
                                      InetSocketAddress target)
         throws IOException
@@ -1003,9 +1016,13 @@ class DatagramChannelImpl
         int written;
         NIO_ACCESS.acquireSession(bb);
         try {
+            long bufAddress = NIO_ACCESS.getBufferAddress(bb);
             int addressLen = targetSocketAddress(target);
-            written = send0(fd, ((DirectBuffer)bb).address() + pos, rem,
-                            targetSockAddr.address(), addressLen);
+            written = send0(fd,
+                            bufAddress + pos,
+                            rem,
+                            targetSockAddr.address(),
+                            addressLen);
         } catch (PortUnreachableException pue) {
             if (isConnected())
                 throw pue;
@@ -1933,6 +1950,11 @@ class DatagramChannelImpl
 
     @Override
     public void kill() {
+        // wait for any read/write operations to complete before trying to close
+        readLock.lock();
+        readLock.unlock();
+        writeLock.lock();
+        writeLock.unlock();
         synchronized (stateLock) {
             if (state == ST_CLOSING) {
                 tryFinishClose();
