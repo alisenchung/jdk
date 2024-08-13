@@ -2230,7 +2230,7 @@ public abstract class BasicLookAndFeel extends LookAndFeel implements Serializab
                     }
                     if(src != null && src.isEnabled()) {
                         JPopupMenu componentPopupMenu = src.getComponentPopupMenu();
-                        if(componentPopupMenu != null && (eventID == MouseEvent.MOUSE_PRESSED)) {
+                        if(componentPopupMenu != null) {
                             Point pt = src.getPopupLocation(me);
                             if(pt == null) {
                                 pt = me.getPoint();
