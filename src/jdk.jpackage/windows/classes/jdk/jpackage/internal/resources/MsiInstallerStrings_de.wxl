@@ -1,5 +1,5 @@
 <?xml version = '1.0' encoding = 'utf-8'?>
-<WixLocalization Culture="de-de" xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="1252">
+<WixLocalization Culture="de" xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="1252">
   <String Id="MainFeatureTitle">Hauptfeature</String>
   <String Id="DowngradeErrorMessage">Eine höhere Version von [ProductName] ist bereits installiert. Downgrades sind deaktiviert. Setup wird jetzt beendet.</String>
   <String Id="DisallowUpgradeErrorMessage">Eine niedrigere Version von [ProductName] ist bereits installiert. Upgrades sind deaktiviert. Setup wird jetzt beendet.</String>
@@ -16,5 +16,5 @@
 
   <String Id="ContextMenuCommandLabel">Mit [ProductName] öffnen</String>
 
-  <String Id="OsConditionMessage">[ProductName][ProductVersion] is not supported on this version of Windows</String>
+  <String Id="OsConditionMessage">[ProductName][ProductVersion] wird unter dieser Windows-Version nicht unterstützt</String>
 </WixLocalization>
